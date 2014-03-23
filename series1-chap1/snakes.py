@@ -1,4 +1,12 @@
+#!/usr/bin/env python
+"""
+Snakes: A contour detecting algorithm.
+       (CVIM Tutorial Series Vol. 1)
+
+(c) T.Mizumoto
+"""
 import pickle
+import itertools
 import numpy
 
 
@@ -8,25 +16,35 @@ def isInRange(val, fr, to):
     return fr <= val and val <= to
 
 
-def getNeighbors(pos, data):
-    n = []
+def getNeighbors(pos, data, excludeSelf=True):
+    """Returns 8 neighbors of POS.
+    The function ensures that all neighbors are in the shape of the data.
+    if excludeSelf is True, the returned neighbors does not include pos itself.
+    """
 
-    for x in range(pos[1]-1, pos[1]+2):
-        for y in range(pos[0]-1, pos[0]+2):
-            # if x == pos[1] and y == pos[0]:
-            #     continue
+    # get neighbors that
+    #   in the shape of the data and
+    #   not equals to pos
+    neighbors = [n for n
+                 in itertools.product(range(pos[0]-1, pos[0] + 2),
+                                      range(pos[1]-1, pos[1] + 2))
+                 if isInRange(n[1], 0, data.shape[1] - 1) and
+                 isInRange(n[0], 0, data.shape[0] - 1) and
+                 distance(n, pos) > 0]
 
-            if isInRange(x, 0, data.shape[1]-1) and \
-               isInRange(y, 0, data.shape[0]-1):
-                n.append((y, x))
+    # add pos if excludeSelf is False
+    if excludeSelf is False:
+        neighbors.append(pos)
 
-    for tmpn in n:
-        if abs(tmpn[0] - pos[0]) > 1 or abs(tmpn[1] - pos[1]) > 1:
-            print "ERROR", n, pos
-    return n
+    return neighbors
 
 
 def calcEnergy(prevv, curv, nextv, data):
+    """Calculate three energies
+       e1: Econt  Tension. Large value is contour is large.
+       e2: Ecurv  Curvature. Large value if contour is curved.
+       e3: Eimage Edge. Negative large value if the vertex is edge.
+       """
 
     e1 = (nextv[1] - curv[1]) ** 2 + (nextv[0] - curv[0]) ** 2
 
@@ -43,54 +61,59 @@ def calcEnergy(prevv, curv, nextv, data):
 
 
 def distance(a, b):
+    """Manhattan distance of a and b"""
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
-def snakes(data):
-    alpha = 1
-    beta = 3
-    gamma = 2
+def initVertice(r, offset, theta, margin):
+    """
+    initializes circular vertice.
+    r is a radius, offset is the center,
+    theta is a interval in degress,
+    and margin is the margin from the edge.
+    """
+    r -= margin
+    radians = [rad * numpy.pi / 180 for rad in range(0, 360, theta)]
+    y = [int(r * numpy.sin(rad) + offset[1]) for rad in radians]
+    x = [int(r * numpy.cos(rad) + offset[0]) for rad in radians]
+
+    return zip(y, x)
+
+
+def snakes(data, alpha=1, beta=1, gamma=1, loop=100, isDebug=True):
     # prepare variables
-    v = []  # vertex v  (y, x)
-    cx = data.shape[1] / 2
-    cy = data.shape[0] / 2
-    r = min(data.shape[0], data.shape[1]) / 2 - 30
+    v = initVertice(min(data.shape[0], data.shape[1])/2,  # radius
+                    [data.shape[1]/2, data.shape[0]/2],  # center
+                    20,  # theta interval
+                    10)  # margin
 
-    for theta in range(0, 360, 10):
-        rad = theta * numpy.pi / 180
-        v.append([int(r * numpy.sin(rad) + cx), int(r * numpy.cos(rad) + cy)])
-
-    N = len(v)  # num of vertice
     dtotal = 0  # total amount of movement
     dbar = 0  # mean inter-vertex distance
-    loops = 500  # iteration
-
-    countdown = 10
-    prevlenv = N
 
     # main loop
-    pylab.ion()
-    for n in range(loops):
+    if isDebug:
+        pylab.ion()
+    for n in range(loop):
         dtotal = 0
         for itmpv, tmpv in enumerate(v):
-            energies = []
+            # calculate energies for each neighbor
             neighbors = getNeighbors(tmpv, data)
-            for neighbor in neighbors:
-                # for rotation
-                next = itmpv + 1 if itmpv < len(v) - 1 else 0
-                prev = itmpv - 1 if itmpv > 0 else len(v) - 1
-                energies.append(calcEnergy(v[prev], neighbor, v[next], data))
-                # print prev, itmpv, next, energies[-1]
+            next = itmpv + 1 if itmpv < len(v) - 1 else 0
+            prev = itmpv - 1 if itmpv > 0 else len(v) - 1
+            energies = [calcEnergy(v[prev], neighbor, v[next], data)
+                        for neighbor in neighbors]
 
             # normalize e1, e2
             maxe1 = max(max([e[0] for e in energies]), 1) * 1.0
             maxe2 = max(max([e[1] for e in energies]), 1) * 1.0
             energies = [(e[0] / maxe1, e[1] / maxe2, e[2]) for e in energies]
-            energies = [alpha * e[0] + beta * e[1] + gamma * e[2]
-                        for e in energies]
-            energies = numpy.array(energies)
 
-            # prevent duplicated positions
+            # calculate energy
+            energies = numpy.array([alpha * e[0] + beta * e[1] + gamma * e[2]
+                                    for e in energies])
+
+            # Find the next tmpv position,
+            # preventing to go to the duplicated positions.
             for i in range(len(energies)):
                 imin = numpy.argmin(energies)
                 if not neighbors[imin] in v:
@@ -101,30 +124,17 @@ def snakes(data):
 
             dtotal += distance(v[itmpv], nextv)
             v[itmpv] = nextv
-            # print energies
 
         # plot
-        dmydata = pickle.load(open("simpleimg.pickle"))
-        for c in v:
-            dmydata[c[1], c[0]] = 200
-
-        # dmydata[v[prev][1],  v[prev][0]] = 100
-        # dmydata[v[itmpv][1], v[itmpv][0]] = 100
-        # dmydata[v[next][1],  v[next][0]] = 100
-        pylab.clf()
-        pylab.imshow(dmydata, interpolation="nearest")
-        pylab.draw()
-
-        # # remove duplicats
-        # newv = [v[0]]
-        # for tmpv in v[1:]:
-        #     if not tmpv in newv:
-        #         newv.append(tmpv)
-        # v = newv
-
-        # countdown = countdown -1 if prevlenv == len(v) else 10
-        # if countdown == 0:
-        #     break
+        if isDebug:
+            dmydata = pickle.load(open("simpleimg.pickle"))
+            # for c in v:
+            #     dmydata[c[1], c[0]] = 200
+            print v
+            pylab.clf()
+            pylab.plot([tmp[1] for tmp in v], [tmp[0] for tmp in v], "ro-")
+            pylab.imshow(dmydata, interpolation="nearest")
+            pylab.draw()
 
     return v
 
