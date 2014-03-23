@@ -13,6 +13,9 @@ def getNeighbors(pos, data):
 
     for x in range(pos[1]-1, pos[1]+2):
         for y in range(pos[0]-1, pos[0]+2):
+            # if x == pos[1] and y == pos[0]:
+            #     continue
+
             if isInRange(x, 0, data.shape[1]-1) and \
                isInRange(y, 0, data.shape[0]-1):
                 n.append((y, x))
@@ -45,15 +48,15 @@ def distance(a, b):
 
 def snakes(data):
     alpha = 1
-    beta = 1
-    gamma = 1
+    beta = 3
+    gamma = 2
     # prepare variables
     v = []  # vertex v  (y, x)
     cx = data.shape[1] / 2
     cy = data.shape[0] / 2
-    r = min(data.shape[0], data.shape[1]) / 2 - 5
+    r = min(data.shape[0], data.shape[1]) / 2 - 30
 
-    for theta in range(0, 360, 15):
+    for theta in range(0, 360, 10):
         rad = theta * numpy.pi / 180
         v.append([int(r * numpy.sin(rad) + cx), int(r * numpy.cos(rad) + cy)])
 
@@ -85,9 +88,19 @@ def snakes(data):
             energies = [(e[0] / maxe1, e[1] / maxe2, e[2]) for e in energies]
             energies = [alpha * e[0] + beta * e[1] + gamma * e[2]
                         for e in energies]
+            energies = numpy.array(energies)
 
-            dtotal += distance(v[itmpv], neighbors[numpy.argmin(energies)])
-            v[itmpv] = neighbors[numpy.argmin(energies)]
+            # prevent duplicated positions
+            for i in range(len(energies)):
+                imin = numpy.argmin(energies)
+                if not neighbors[imin] in v:
+                    nextv = neighbors[imin]
+                    break
+                else:
+                    energies[imin] = numpy.max(energies) + 1
+
+            dtotal += distance(v[itmpv], nextv)
+            v[itmpv] = nextv
             # print energies
 
         # plot
@@ -102,12 +115,12 @@ def snakes(data):
         pylab.imshow(dmydata, interpolation="nearest")
         pylab.draw()
 
-        # remove duplicats
-        newv = [v[0]]
-        for tmpv in v[1:]:
-            if not tmpv in newv:
-                newv.append(tmpv)
-        v = newv
+        # # remove duplicats
+        # newv = [v[0]]
+        # for tmpv in v[1:]:
+        #     if not tmpv in newv:
+        #         newv.append(tmpv)
+        # v = newv
 
         # countdown = countdown -1 if prevlenv == len(v) else 10
         # if countdown == 0:
