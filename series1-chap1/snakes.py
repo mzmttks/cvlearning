@@ -80,21 +80,23 @@ def initVertice(r, offset, theta, margin):
     return zip(y, x)
 
 
-def snakes(data, alpha=1, beta=1, gamma=1, loop=100, isDebug=True):
+def snakes(data, alpha=0.5, beta=1, gamma=1, loop=500, isDebug=True):
     # prepare variables
     v = initVertice(min(data.shape[0], data.shape[1])/2,  # radius
                     [data.shape[1]/2, data.shape[0]/2],  # center
-                    20,  # theta interval
-                    10)  # margin
+                    10,  # theta interval
+                    3)  # margin
 
     dtotal = 0  # total amount of movement
     dbar = 0  # mean inter-vertex distance
+    dmydata = numpy.array(data)
 
     # main loop
     if isDebug:
         pylab.ion()
     for n in range(loop):
         dtotal = 0
+        updatedv = []
         for itmpv, tmpv in enumerate(v):
             # calculate energies for each neighbor
             neighbors = getNeighbors(tmpv, data)
@@ -116,23 +118,26 @@ def snakes(data, alpha=1, beta=1, gamma=1, loop=100, isDebug=True):
             # preventing to go to the duplicated positions.
             for i in range(len(energies)):
                 imin = numpy.argmin(energies)
-                if not neighbors[imin] in v:
+                imins = numpy.where(energies == energies[imin])[0]
+                if len(imins) == 1:
                     nextv = neighbors[imin]
+                    break
+                elif v in [neighbors[tmp] for tmp in imins]:
+                    nextv = v
                     break
                 else:
                     energies[imin] = numpy.max(energies) + 1
 
             dtotal += distance(v[itmpv], nextv)
-            v[itmpv] = nextv
-
+            updatedv.append(nextv)
+        v = updatedv
         # plot
         if isDebug:
-            dmydata = pickle.load(open("simpleimg.pickle"))
             # for c in v:
             #     dmydata[c[1], c[0]] = 200
             print v
             pylab.clf()
-            pylab.plot([tmp[1] for tmp in v], [tmp[0] for tmp in v], "ro-")
+            pylab.plot([tmp[0] for tmp in v], [tmp[1] for tmp in v], "ro-")
             pylab.imshow(dmydata, interpolation="nearest")
             pylab.draw()
 
@@ -141,8 +146,9 @@ def snakes(data, alpha=1, beta=1, gamma=1, loop=100, isDebug=True):
 if __name__ == "__main__":
     import pickle
     import pylab
+    import sys
 
-    data = pickle.load(open("simpleimg.pickle"))
+    data = pickle.load(open(sys.argv[1]))
 
     contour = snakes(data)
     for c in contour:
