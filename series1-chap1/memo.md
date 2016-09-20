@@ -47,5 +47,5 @@ Level Set Method の Upwind Scheme, AOS, ADI を用いた実装法
 Geometric Active Contour, Geodesic(測地線) Active Contour
 ========================================================
 
-高速実装： Fast Marhing method, 参照マップ method
+高速実装： Fast Marching method, 参照マップ method
 ===========================================
